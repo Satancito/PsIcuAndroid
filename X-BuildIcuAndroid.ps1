@@ -38,7 +38,7 @@ None. You can't pipe objects to X-BuildIcuAndroid.ps1.
 None. X-BuildIcuAndroid.ps1 doesn't generate any output.
   
 .NOTES
-At this moment only Windows(WSL), Linux are compatible.
+At this moment only Windows(WSL) and Linux are compatible.
 
 .LINK
 How To Cross Compile ICU: https://unicode-org.github.io/icu/userguide/icu4c/build.html#how-to-cross-compile-icu
