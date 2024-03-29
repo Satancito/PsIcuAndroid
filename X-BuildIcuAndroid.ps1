@@ -16,7 +16,6 @@ $CONFIGURATION: Debug, Release.
 $ABI: armeabi-v7a, arm64-v8a, x86, x86-64.
 $HOME: The current user directory.
 
-
 .PARAMETER ForceDownloadNDK
 NDK installation dir is removed. NDK package is downloaded and unzipped on NDK installation dir.
 
@@ -39,7 +38,7 @@ None. You can't pipe objects to X-BuildIcuAndroid.ps1.
 None. X-BuildIcuAndroid.ps1 doesn't generate any output.
   
 .NOTES
-At this moment only Linux is compatible.
+At this moment only Windows(WSL), Linux are compatible.
 
 .LINK
 How To Cross Compile ICU: https://unicode-org.github.io/icu/userguide/icu4c/build.html#how-to-cross-compile-icu
@@ -73,7 +72,9 @@ param (
 )
 
 Import-Module -Name "$PSScriptRoot/submodules/PsCoreFxs/Z-PsCoreFxs.ps1" -Force -NoClobber
-Update-GitSubmodules -Path "$PSScriptRoot" -Force
+$ErrorActionPreference = "Stop"
+& git submodule init
+& git submodule update --remote --recursive --force
 
 function Clear-BuildVariables {
     $env:TARGET = ""
@@ -89,6 +90,18 @@ function Clear-BuildVariables {
     $env:LDFLAGS = "" 
     $env:CXXFLAGS = ""
     $env:CFLAGS = "" 
+}
+
+function Test-WindowsRequiredTools {
+    Write-Host
+    Write-InfoBlue "Test - Windows Dependency tools"
+    Write-Host
+    if ($IsWindows) {
+        $command = Get-Command "wsl"
+        Write-Host "$($command.Source)"
+        & "$($command.Source)" --version
+        Write-Host
+    }
 }
 
 function Test-RequiredTools {
@@ -119,6 +132,25 @@ function Test-RequiredTools {
     Write-Host "$($command.Source)"
     & "$($command.Source)" -v
     Write-Host
+}
+$DestinationDir = ([string]::IsNullOrWhiteSpace($DestinationDir)) ? "$(Get-UserHome)/.CppLibs" : "$DestinationDir"
+if ($IsWindows) {
+    Test-WindowsRequiredTools
+
+    $paramsFromWindows = @{
+        "Script"           = (Get-WslPath -Path "$PSCommandPath")
+        "DestinationDir"   = (Get-WslPath -Path "$DestinationDir")
+        "ForceDownloadNDK" = $ForceDownloadNDK.IsPresent
+        "ForceDownloadICU" = $ForceDownloadICU.IsPresent
+        "AndroidAPI"       = $AndroidAPI
+    }
+    Write-Warning "Incompatible platform. Using WSL."
+    & wsl pwsh -Command {
+        $params = $args[0]
+        Write-Host "Wsl User: " -NoNewline ; & whoami
+        & "$($params.Script)" -AndroidAPI $params.AndroidAPI -ForceDownloadNDK:$params.ForceDownloadNDK -ForceDownloadICU:$params.ForceDownloadICU -DestinationDir $params.DestinationDir
+    } -args $paramsFromWindows
+    exit
 }
 
 if ($IsWindows -or $IsMacOS) {
@@ -293,12 +325,7 @@ $HOST_BUILD_CONFIGS.Keys | ForEach-Object {
         Push-Location "$($HOST_BUILD_CONFIGS[$_].BuildDir)"
         Write-PrettyKeyValue "Configuring" "ICU - $_ - Host Platform: $($NDK_PROPS.IcuHostPlatform)"
         $LIB_DIST_DIR = "$HOST_BUILD_DIR/dist/ICU-$($ICU4C_RELEASE.Version)-Linux-$(sh -c 'uname -m')-$_"
-        if ($_.Equals("Debug")) {
-            & sh "$ICU_SOURCE/runConfigureICU" "$($NDK_PROPS.IcuHostPlatform)" --prefix="$LIB_DIST_DIR" $($HOST_BUILD_CONFIGS[$_].IcuConfigureParameters) --enable-static --disable-shared --disable-tools --disable-strict --disable-tests --disable-samples --disable-fuzzer --disable-dyload
-        }
-        else {
-            & sh "$ICU_SOURCE/runConfigureICU" "$($NDK_PROPS.IcuHostPlatform)" --prefix="$LIB_DIST_DIR" --disable-debug --enable-release --enable-static --disable-shared --disable-tools --disable-strict --disable-tests --disable-samples --disable-fuzzer --disable-dyload
-        }
+        & sh "$ICU_SOURCE/runConfigureICU" "$($NDK_PROPS.IcuHostPlatform)" --prefix="$LIB_DIST_DIR" $($HOST_BUILD_CONFIGS[$_].IcuConfigureParameters) --enable-static --disable-shared --disable-tools --disable-strict --disable-tests --disable-samples --disable-fuzzer --disable-dyload
         Write-PrettyKeyValue "Building" "ICU - $_ - Host Platform: $($NDK_PROPS.IcuHostPlatform)"
         make -j16 
         make install 
@@ -315,7 +342,7 @@ $ABIs.Keys | ForEach-Object {
     $ABI = $ABIs[$_]
     Clear-BuildVariables
     $LIB_BUILD_DIR = "$BUILD_DIR/Android/$($ABI.Mode)/$($ABI.Name)"
-    $LIB_DIST_DIR = ([string]::IsNullOrWhiteSpace($DestinationDir)) ? "$(Get-UserHome)/.CppLibs/ICU-$($ICU4C_RELEASE.Version)-Android-$($ABI.Name)-$($ABI.Mode)" : $DestinationDir
+    $LIB_DIST_DIR = "$DestinationDir/ICU-$($ICU4C_RELEASE.Version)-Android-$($ABI.Name)-$($ABI.Mode)"
     New-Item -Path "$LIB_BUILD_DIR" -ItemType Directory -Force | Out-Null
 
     $TOOLCHAIN = "$NDK_DIR/$($NDK_PROPS.Toolchain)"
