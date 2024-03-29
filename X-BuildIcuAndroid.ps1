@@ -134,21 +134,21 @@ $NDK_OS_VARIANTS = @{
         Sha1            = "f8c8aa6135241954461b2e3629cada4722e13ee7".ToUpper()
         HostTag         = "windows-x86_64"
         IcuHostPlatform = "Linux"
-        Toolchain      = "toolchains/llvm/prebuilt/windows-x86_64"
+        Toolchain       = "toolchains/llvm/prebuilt/windows-x86_64"
     }
     Linux   = @{ 
         Uri             = "https://dl.google.com/android/repository/android-ndk-r26c-linux.zip"
         Sha1            = "7faebe2ebd3590518f326c82992603170f07c96e".ToUpper()
         HostTag         = "linux-x86_64"
         IcuHostPlatform = "Linux"
-        Toolchain      = "toolchains/llvm/prebuilt/linux-x86_64"
+        Toolchain       = "toolchains/llvm/prebuilt/linux-x86_64"
     }
     MacOS   = @{ 
         Uri             = "https://dl.google.com/android/repository/android-ndk-r26c-darwin.dmg"
         Sha1            = "9d86710c309c500aa0a918fa9902d9d72cca0889".ToUpper()
         HostTag         = "darwin-x86_64"
         IcuHostPlatform = "MacOSX/GCC"
-        Toolchain      = "toolchains/llvm/prebuilt/darwin-x86_64"
+        Toolchain       = "toolchains/llvm/prebuilt/darwin-x86_64"
     }
     Version = "r26c"
 }
@@ -176,11 +176,11 @@ $BUILD_DIR = "$PSScriptRoot/Build"
 $HOST_BUILD_DIR = "$BUILD_DIR/$OS"
 $HOST_BUILD_CONFIGS = @{
     Debug   = @{
-        BuildDir           = "$HOST_BUILD_DIR/Debug/$(sh -c 'uname -m')"
+        BuildDir               = "$HOST_BUILD_DIR/Debug/$(sh -c 'uname -m')"
         IcuConfigureParameters = @("--enable-debug", "--disable-release")
     }
     Release = @{
-        BuildDir           = "$HOST_BUILD_DIR/Release/$(sh -c 'uname -m')"
+        BuildDir               = "$HOST_BUILD_DIR/Release/$(sh -c 'uname -m')"
         IcuConfigureParameters = @("--enable-release", "--disable-debug")
     }
 } 
@@ -202,7 +202,7 @@ $ABIs = @{
         Triple                 = "i686-linux-android" 
         Name                   = "x86"
         Mode                   = "Debug"
-        IcuConfigureParameters = @("--enable-debug","--disable-release")
+        IcuConfigureParameters = @("--enable-debug", "--disable-release")
     }
     "x86-64"              = @{ 
         Triple                 = "x86_64-linux-android" 
@@ -289,17 +289,14 @@ $env:LDFLAGS = $LDFLAGS
 
 $HOST_BUILD_CONFIGS.Keys | ForEach-Object {
     try {
-        
         New-Item -Path "$($HOST_BUILD_CONFIGS[$_].BuildDir)" -ItemType Directory -Force | Out-Null
         Push-Location "$($HOST_BUILD_CONFIGS[$_].BuildDir)"
         Write-PrettyKeyValue "Configuring" "ICU - $_ - Host Platform: $($NDK_PROPS.IcuHostPlatform)"
         $LIB_DIST_DIR = "$HOST_BUILD_DIR/dist/ICU-$($ICU4C_RELEASE.Version)-Linux-$(sh -c 'uname -m')-$_"
-        if($_.Equals("Debug"))
-        {
+        if ($_.Equals("Debug")) {
             & sh "$ICU_SOURCE/runConfigureICU" "$($NDK_PROPS.IcuHostPlatform)" --prefix="$LIB_DIST_DIR" $($HOST_BUILD_CONFIGS[$_].IcuConfigureParameters) --enable-static --disable-shared --disable-tools --disable-strict --disable-tests --disable-samples --disable-fuzzer --disable-dyload
         }
-        else
-        {
+        else {
             & sh "$ICU_SOURCE/runConfigureICU" "$($NDK_PROPS.IcuHostPlatform)" --prefix="$LIB_DIST_DIR" --disable-debug --enable-release --enable-static --disable-shared --disable-tools --disable-strict --disable-tests --disable-samples --disable-fuzzer --disable-dyload
         }
         Write-PrettyKeyValue "Building" "ICU - $_ - Host Platform: $($NDK_PROPS.IcuHostPlatform)"
@@ -350,9 +347,5 @@ $ABIs.Keys | ForEach-Object {
     }
     finally {
         Pop-Location
-    }
-    
-    
-    
-    
+    } 
 }
