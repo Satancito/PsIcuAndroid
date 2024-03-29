@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-This script allows to build ICU library for Android.
+This script allows you to build ICU library for Android.
 
 .DESCRIPTION
 This script allows to build ICU library for Android.
@@ -10,7 +10,12 @@ Supported ABIs: armeabi-v7a, arm64-v8a, x86, x86-64.
 Set the Android API in NDK toolchain.
 
 .PARAMETER DestinationDir
-Directory where the compiled library will be copied.
+Directory where the compiled library will be copied. If this parameter is empty string, the default directory is $HOME/.CppLibs/ICU-$ICUVERSION-Android-$ABI-$CONFIGURATION/
+
+$CONFIGURATION: Debug, Release.
+$ABI: armeabi-v7a, arm64-v8a, x86, x86-64.
+$HOME: The current user directory.
+
 
 .PARAMETER ForceDownloadNDK
 NDK installation dir is removed. NDK package is downloaded and unzipped on NDK installation dir.
