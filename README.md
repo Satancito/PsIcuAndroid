@@ -3,7 +3,7 @@ This script allows to build ICU library for Android.
 
 Supported ABIs: armeabi-v7a, arm64-v8a, x86, x86-64.  
 
-At this moment only Windows(WSL) and Linux are compatible.
+Windows(WSL), Linux, MacOS are compatible.
 
 ## How to use - Examples
 `./X-BuildIcuAndroid.ps1`

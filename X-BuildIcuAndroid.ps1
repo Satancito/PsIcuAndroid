@@ -38,7 +38,7 @@ None. You can't pipe objects to X-BuildIcuAndroid.ps1.
 None. X-BuildIcuAndroid.ps1 doesn't generate any output.
   
 .NOTES
-At this moment only Windows(WSL) and Linux are compatible.
+Windows(WSL), Linux, MacOS compatible.
 
 .LINK
 How To Cross Compile ICU: https://unicode-org.github.io/icu/userguide/icu4c/build.html#how-to-cross-compile-icu
@@ -153,10 +153,6 @@ if ($IsWindows) {
     exit
 }
 
-if ($IsWindows -or $IsMacOS) {
-    throw "Not compatible OS: $OS"
-}
-
 Test-RequiredTools
 
 # ███ Set values.
@@ -181,6 +177,7 @@ $NDK_OS_VARIANTS = @{
         HostTag         = "darwin-x86_64"
         IcuHostPlatform = "MacOSX/GCC"
         Toolchain       = "toolchains/llvm/prebuilt/darwin-x86_64"
+        NdkInternalMountedDir = "AndroidNDK11394342.app/Contents/NDK"
     }
     Version = "r26c"
 }
@@ -194,7 +191,8 @@ $ICU4C_RELEASE = @{
 
 $TEMP_DIR = "$(Get-UserHome)/.PsIcuAndroid"
 $NDK_BASE_DIR = "$(Get-UserHome)/.android-ndk"
-$OS = "$(Get-VariableName $IsLinux)".TrimStart("Is")
+
+$OS = Select-ValueByPlatform -WindowsValue "Windows" -LinuxValue "Linux" -MacOSValue "MacOS"
 $NDK_PROPS = $NDK_OS_VARIANTS[$OS]
 $NDK_DOWNLOAD_FILENAME = "$TEMP_DIR/$([System.IO.Path]::GetFileName($NDK_PROPS.Uri))"
 $NDK_DIR = "$NDK_BASE_DIR/android-ndk-$($NDK_OS_VARIANTS.Version)"
@@ -284,8 +282,22 @@ if (!$Sha1.Hash.Equals($NDK_PROPS.Sha1)) {
 }
 if ($downloaded -or !(Test-Path -Path "$NDK_DIR" -PathType Container)) {
     Remove-Item -Path "$NDK_DIR" -Force -Recurse -ErrorAction Ignore
-    Write-PrettyKeyValue "Unzipping" "$NDK_DOWNLOAD_FILENAME"
-    & unzip "$NDK_DOWNLOAD_FILENAME" -d "$NDK_BASE_DIR"  
+    if($IsLinux)
+    {
+        Write-PrettyKeyValue "Unzipping" "$NDK_DOWNLOAD_FILENAME, " -NoNewLine
+        Write-PrettyKeyValue "Destination" "$NDK_DIR"
+        & unzip "$NDK_DOWNLOAD_FILENAME" -d "$NDK_BASE_DIR"  
+    }
+    if($IsMacOS)
+    {
+        $MOUNT_POINT = "/Volumes/android-ndk-$($NDK_OS_VARIANTS.Version)"
+        Write-PrettyKeyValue "Mounting" "`"$NDK_DOWNLOAD_FILENAME`" in `"$MOUNT_POINT`", " -NoNewLine
+        Write-PrettyKeyValue "Copy NDK Destination" "$NDK_DIR"
+        & hdiutil mount "$NDK_DOWNLOAD_FILENAME" -mountpoint "$MOUNT_POINT"
+        New-Item -Path $NDK_DIR -ItemType Directory -Force | Out-Null
+        & cp -R "$MOUNT_POINT/$($NDK_PROPS.NdkInternalMountedDir)/" "$NDK_DIR"
+        hdiutil detach "$MOUNT_POINT"
+    }
 }
 
 # ███ Download ICU.
@@ -311,7 +323,13 @@ New-Item -Path $BUILD_DIR -ItemType Directory -Force | Out-Null
 # ███ Build Host library.
 Clear-BuildVariables
 $CPPFLAGS = "-ffunction-sections -fdata-sections -fvisibility=hidden -fno-short-wchar -fno-short-enums -DU_USING_ICU_NAMESPACE=1 -DU_HAVE_NL_LANGINFO_CODESET=0 -D__STDC_INT64__ -DU_TIMEZONE=0 -DUCONFIG_NO_LEGACY_CONVERSION=1"
-$LDFLAGS = "-Wl,--gc-sections"
+if($IsLinux){
+    $LDFLAGS = "-Wl,--gc-sections"
+}
+if($IsMacOS)
+{
+    $LDFLAGS = "-Wl,-dead_strip"
+}
 $CXXFLAGS = ""
 $CFLAGS = ""
 $env:CXXFLAGS = $CXXFLAGS
@@ -324,7 +342,7 @@ $HOST_BUILD_CONFIGS.Keys | ForEach-Object {
         New-Item -Path "$($HOST_BUILD_CONFIGS[$_].BuildDir)" -ItemType Directory -Force | Out-Null
         Push-Location "$($HOST_BUILD_CONFIGS[$_].BuildDir)"
         Write-PrettyKeyValue "Configuring" "ICU - $_ - Host Platform: $($NDK_PROPS.IcuHostPlatform)"
-        $LIB_DIST_DIR = "$HOST_BUILD_DIR/dist/ICU-$($ICU4C_RELEASE.Version)-Linux-$(sh -c 'uname -m')-$_"
+        $LIB_DIST_DIR = "$HOST_BUILD_DIR/dist/ICU-$($ICU4C_RELEASE.Version)-$OS-$(sh -c 'uname -m')-$_"
         & sh "$ICU_SOURCE/runConfigureICU" "$($NDK_PROPS.IcuHostPlatform)" --prefix="$LIB_DIST_DIR" $($HOST_BUILD_CONFIGS[$_].IcuConfigureParameters) --enable-static --disable-shared --disable-tools --disable-strict --disable-tests --disable-samples --disable-fuzzer --disable-dyload
         Write-PrettyKeyValue "Building" "ICU - $_ - Host Platform: $($NDK_PROPS.IcuHostPlatform)"
         make -j16 
@@ -334,7 +352,6 @@ $HOST_BUILD_CONFIGS.Keys | ForEach-Object {
         Pop-Location
     }
 }
-
 
 # ███ Build ICU Android libraries for all ABI.
 
